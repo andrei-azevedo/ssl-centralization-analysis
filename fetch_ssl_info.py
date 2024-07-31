@@ -1,46 +1,83 @@
+import csv
+import ssl
 import socket
-from OpenSSL import SSL
+from datetime import datetime
 
-def get_ssl_certificate_chain(domain):
-    port = 443
-    # Create an SSL context with a modern TLS method
-    context = SSL.Context(SSL.TLSv1_2_METHOD)
+def get_ssl_certificate(domain):
+    context = SSL.Context(SSL.SSLv23_METHOD)
+    #context = ssl.create_default_context()
+    conn = context.wrap_socket(socket.socket(socket.AF_INET), server_hostname=domain)
+    conn.settimeout(5.0)
     
-    # Create a socket and connect to the server
-    sock = socket.create_connection((domain, port))
-    connection = SSL.Connection(context, sock)
-    connection.set_tlsext_host_name(domain.encode())
-
     try:
-        connection.setblocking(1)
-        connection.do_handshake()
-        
-        # Get the certificate chain
-        cert_chain = connection.get_peer_cert_chain()
-        return cert_chain
-
-    except SSL.Error as e:
-        print(f"SSL error: {e}")
+        conn.connect((domain, 443))
+        ssl_info = conn.getpeercert()
+    except Exception as e:
+        print(f"Error fetching SSL certificate for {domain}: {e}")
         return None
     finally:
-        connection.shutdown()
-        sock.close()
-
-def print_cert_details(cert):
-    print(f"Subject: {cert.get_subject()}")
-    print(f"Issuer: {cert.get_issuer()}")
-    print(f"Serial Number: {cert.get_serial_number()}")
-    print(f"Not Valid Before: {cert.get_notBefore().decode()}")
-    print(f"Not Valid After: {cert.get_notAfter().decode()}")
-    print("---------------------------------------------------")
-
-if __name__ == "__main__":
-    domain = 'example.com'  # Replace with your target domain
-    cert_chain = get_ssl_certificate_chain(domain)
+        conn.close()
     
-    if cert_chain:
-        print("SSL Certificate Chain:")
-        for cert in cert_chain:
-            print_cert_details(cert)
-    else:
-        print("No certificate chain found.")
+    return ssl_info
+
+def parse_ssl_certificate(cert):
+    if cert is None:
+        return None
+    
+    domain = cert['subject'][0][0][1]
+    country_name = cert['issuer'][0][0][1]
+    organization_name = cert['issuer'][1][0][1]
+    not_before = datetime.strptime(cert['notBefore'], '%b %d %H:%M:%S %Y %Z')
+    not_after = datetime.strptime(cert['notAfter'], '%b %d %H:%M:%S %Y %Z')
+    
+    return {
+        'domain': domain,
+        'country_name': country_name,
+        'organization_name': organization_name,
+        'issue_date': not_before,
+        'expiration_date': not_after
+    }
+
+def write_to_csv(data, output_file):
+    fieldnames = ['domain', 'country_name', 'organization_name', 'issue_date', 'expiration_date']
+    
+    with open(output_file, mode='w', newline='', encoding='utf-8') as file:
+        writer = csv.DictWriter(file, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(data)
+
+def read_crux_data(csv_file):
+    domains = []
+    
+    with open(csv_file, mode='r', newline='', encoding='utf-8') as file:
+        reader = csv.reader(file)
+        
+        # Read the header if present
+        header = next(reader, None)
+        
+        for row in reader:
+            field = row[0]
+            if field.startswith('https://'):
+                field = field[len('https://'):]
+            domains.append(field)
+    
+    return domains
+
+def main(domains, output_file):
+    ssl_data = []
+    
+    for domain in domains:
+        cert = get_ssl_certificate(domain)
+        parsed_cert = parse_ssl_certificate(cert)
+        if parsed_cert:
+            ssl_data.append(parsed_cert)
+        break
+    write_to_csv(ssl_data, output_file)
+    print(f"SSL certificate data has been written to {output_file}")
+
+if __name__ == '__main__':
+    # List of domains to fetch SSL information for
+    domains = read_crux_data('brics.csv')
+    output_csv_file = 'ssl_certificates.csv'
+    
+    main(domains, output_csv_file)
