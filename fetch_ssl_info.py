@@ -1,83 +1,56 @@
-import csv
 import ssl
 import socket
+from OpenSSL import SSL, crypto
+from cryptography import x509
+from cryptography.hazmat.backends import default_backend
 from datetime import datetime
 
-def get_ssl_certificate(domain):
-    context = SSL.Context(SSL.SSLv23_METHOD)
-    #context = ssl.create_default_context()
-    conn = context.wrap_socket(socket.socket(socket.AF_INET), server_hostname=domain)
-    conn.settimeout(5.0)
+def fetch_ssl_certificate_chain(hostname, port=443):
+    # Create a new SSL context
+    context = SSL.Context(SSL.TLS_CLIENT_METHOD)
+    context.set_verify(SSL.VERIFY_NONE, lambda *x: True)
     
-    try:
-        conn.connect((domain, 443))
-        ssl_info = conn.getpeercert()
-    except Exception as e:
-        print(f"Error fetching SSL certificate for {domain}: {e}")
-        return None
-    finally:
-        conn.close()
+    # Create a socket and wrap it in an SSL connection
+    sock = socket.create_connection((hostname, port))
+    ssl_conn = SSL.Connection(context, sock)
+    ssl_conn.set_connect_state()
+    ssl_conn.set_tlsext_host_name(hostname.encode())
     
-    return ssl_info
+    # Perform the handshake to establish the SSL connection
+    ssl_conn.do_handshake()
+    
+    # Retrieve the entire certificate chain
+    cert_chain = ssl_conn.get_peer_cert_chain()
+    
+    for cert in cert_chain:
+        pem_cert = crypto.dump_certificate(crypto.FILETYPE_PEM, cert).decode()
+        parsed_cert = x509.load_pem_x509_certificate(pem_cert.encode(), default_backend())
+        print_certificate_details(parsed_cert)
 
-def parse_ssl_certificate(cert):
-    if cert is None:
-        return None
-    
-    domain = cert['subject'][0][0][1]
-    country_name = cert['issuer'][0][0][1]
-    organization_name = cert['issuer'][1][0][1]
-    not_before = datetime.strptime(cert['notBefore'], '%b %d %H:%M:%S %Y %Z')
-    not_after = datetime.strptime(cert['notAfter'], '%b %d %H:%M:%S %Y %Z')
-    
-    return {
-        'domain': domain,
-        'country_name': country_name,
-        'organization_name': organization_name,
-        'issue_date': not_before,
-        'expiration_date': not_after
-    }
+    # Close the connection
+    ssl_conn.shutdown()
+    ssl_conn.close()
+    sock.close()
 
-def write_to_csv(data, output_file):
-    fieldnames = ['domain', 'country_name', 'organization_name', 'issue_date', 'expiration_date']
+def print_certificate_details(cert):
+    subject = cert.subject
+    issuer = cert.issuer
+    version = cert.version
+    serial_number = cert.serial_number
+    not_before = cert.not_valid_before
+    not_after = cert.not_valid_after
     
-    with open(output_file, mode='w', newline='', encoding='utf-8') as file:
-        writer = csv.DictWriter(file, fieldnames=fieldnames)
-        writer.writeheader()
-        writer.writerows(data)
+    print(f"Subject: {subject}")
+    print(f"Issuer: {issuer}")
+    print(f"Version: {version}")
+    print(f"Serial Number: {serial_number}")
+    print(f"Not Before: {not_before}")
+    print(f"Not After: {not_after}")
+    print("\n")
 
-def read_crux_data(csv_file):
-    domains = []
-    
-    with open(csv_file, mode='r', newline='', encoding='utf-8') as file:
-        reader = csv.reader(file)
-        
-        # Read the header if present
-        header = next(reader, None)
-        
-        for row in reader:
-            field = row[0]
-            if field.startswith('https://'):
-                field = field[len('https://'):]
-            domains.append(field)
-    
-    return domains
-
-def main(domains, output_file):
-    ssl_data = []
-    
-    for domain in domains:
-        cert = get_ssl_certificate(domain)
-        parsed_cert = parse_ssl_certificate(cert)
-        if parsed_cert:
-            ssl_data.append(parsed_cert)
-        break
-    write_to_csv(ssl_data, output_file)
-    print(f"SSL certificate data has been written to {output_file}")
+def main(domain):
+    fetch_ssl_certificate_chain(domain)
 
 if __name__ == '__main__':
-    # List of domains to fetch SSL information for
-    domains = read_crux_data('brics.csv')
-    output_csv_file = 'ssl_certificates.csv'
-    
-    main(domains, output_csv_file)
+    domain = 'marinha.mil.br'
+    main(domain)
