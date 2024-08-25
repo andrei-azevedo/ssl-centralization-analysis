@@ -1,25 +1,36 @@
 import csv
-import ssl
 import socket
+import select
 from OpenSSL import SSL, crypto
 from cryptography import x509
+import time
 from cryptography.hazmat.backends import default_backend
-from datetime import datetime
 
-def fetch_ssl_certificate_chain(hostname, port=443):
+def fetch_ssl_certificate_chain(hostname, port=443, timeout=10):
     try:
         # Create a new SSL context
-        context = SSL.Context(SSL.TLS_CLIENT_METHOD)
+        context = SSL.Context(SSL.TLSv1_2_METHOD)
         context.set_verify(SSL.VERIFY_NONE, lambda *x: True)
         
         # Create a socket and wrap it in an SSL connection
-        sock = socket.create_connection((hostname, port))
+        sock = socket.create_connection((hostname, port), timeout=timeout)
         ssl_conn = SSL.Connection(context, sock)
         ssl_conn.set_connect_state()
         ssl_conn.set_tlsext_host_name(hostname.encode())
         
-        # Perform the handshake to establish the SSL connection
-        ssl_conn.do_handshake()
+        end_time = time.time() + timeout
+        while True:
+            try:
+                ssl_conn.do_handshake()
+                break
+            except SSL.WantReadError:
+                if time.time() > end_time:
+                    raise TimeoutError("SSL handshake timed out")
+                select.select([ssl_conn], [], [], end_time - time.time())
+            except SSL.WantWriteError:
+                if time.time() > end_time:
+                    raise TimeoutError("SSL handshake timed out")
+                select.select([], [ssl_conn], [], end_time - time.time())
         
         # Retrieve the entire certificate chain
         cert_chain = ssl_conn.get_peer_cert_chain()
@@ -39,9 +50,6 @@ def fetch_ssl_certificate_chain(hostname, port=443):
 
     except Exception as e:
         print(f"An error occurred for hostname {hostname}: {e}")
-        ssl_conn.shutdown()
-        ssl_conn.close()
-        sock.close()
         return []
 
 def extract_certificate_details(cert):
