@@ -1,7 +1,13 @@
 import csv
 
 # Define the set of suffixes
-suffixes = {'.br', '.ru', '.in', '.za', '.cn'}
+#suffixes = {'.br', '.ru', '.in', '.za', '.cn'}
+
+suffixes = {
+    ".eu", ".at", ".be", ".bg", ".hr", ".cy", ".cz", ".dk", ".ee", ".fi", 
+    ".fr", ".de", ".gr", ".hu", ".ie", ".it", ".lv", ".lt", ".lu", ".mt", 
+    ".nl", ".pl", ".pt", ".ro", ".sk", ".si", ".es", ".se"
+}
 
 # Function to check if the string ends with any of the specified suffixes
 def ends_with_suffix(string, suffixes):
@@ -35,7 +41,7 @@ def filter_csv(input_file, output_file):
 
 # Specify input and output CSV file paths
 input_csv_file = '202406.csv'
-output_csv_file = 'brics.csv'
+output_csv_file = 'eu.csv'
 
 # Filter the CSV file
 filter_csv(input_csv_file, output_csv_file)
