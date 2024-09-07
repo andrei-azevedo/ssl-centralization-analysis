@@ -2,50 +2,84 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-def get_countries(csv_filename):
+def plot_eu_vs_non_eu_individual_counts(df, eu_country_codes):
+    # Remove the 'C=' prefix from the 'country' column
+    df['country_code'] = df['country'].apply(lambda c: c.split('=')[1] if isinstance(c, str) and c.startswith('C=') else None)
 
-    # Load the CSV file into a pandas DataFrame
-    df = pd.read_csv(csv_filename)
+    # Classify each domain's country as 'EU' or 'Non-EU'
+    df['is_eu'] = df['country_code'].apply(lambda c: 'EU' if c in eu_country_codes else 'Non-EU')
 
-    # Drop duplicate rows based on the 'domain' column, keeping the first occurrence
-    df = df.drop_duplicates(subset='domain', keep='first')
+    # Count the number of domains for EU countries (grouped into one) and non-EU countries (individually)
+    eu_count = df[df['is_eu'] == 'EU'].shape[0]
+    non_eu_counts = df[df['is_eu'] == 'Non-EU']['country_code'].value_counts()
 
-    # Apply the function to the 'issuer' column and create a new column with the extracted country code
-    df['country'] = df['issuer'].apply(extract_country)
-    # Count the unique countries and their occurrences
-    country_counts = df['country'].value_counts()
-    #suffixes = ['.br', '.ru', '.in', '.za', '.cn']
-    suffixes = [
-    ".eu", ".at", ".be", ".bg", ".hr", ".cy", ".cz", ".dk", ".ee", ".fi", 
-    ".fr", ".de", ".gr", ".hu", ".ie", ".it", ".lv", ".lt", ".lu", ".mt", 
-    ".nl", ".pl", ".pt", ".ro", ".sk", ".si", ".es", ".se"
-    ]
-    # Print the DataFrame to see the results
-    #print(df[['domain', 'issuer', 'country']])
-    # Print the unique countries and their occurrences
-    #print("\nUnique countries and their occurrences:")
-    #print(country_counts)
-    # Create a new column 'suffix' in the DataFrame to store the suffix of each domain
-    df['suffix'] = df['domain'].apply(lambda x: next((s for s in suffixes if x.endswith(s)), None))
+    # Create a DataFrame for plotting
+    data = {
+        'Category': ['EU Countries'] + non_eu_counts.index.tolist(),
+        'Count': [eu_count] + non_eu_counts.tolist()
+    }
+    plot_df = pd.DataFrame(data)
 
-    # Filter the DataFrame to keep only rows with the defined suffixes
-    df_filtered = df[df['suffix'].notnull()]
+    # Plot the bar chart using seaborn
+    plt.figure(figsize=(10, 6))
+    sns.barplot(x='Category', y='Count', data=plot_df, palette='Set3')
 
-    # Group by 'suffix' and count the occurrences of each country
-    country_counts_by_suffix = df_filtered.groupby('suffix')['country'].value_counts()
+    # Add title and labels
+    plt.title('Incidence of Domains from EU and Non-EU Countries')
+    plt.xlabel('Country')
+    plt.ylabel('Number of Domains')
 
-    # Print the results
-    print("\nCountry counts by domain suffix:")
-    print(country_counts_by_suffix)
-    # Generate and plot the graphics for each suffix
+    # Rotate x-axis labels for readability
+    plt.xticks(rotation=45, ha='right')
+
+    # Add exact counts above the bars
+    for i, count in enumerate(plot_df['Count']):
+        plt.text(i, count + 10, f'{count}', ha='center', va='bottom')
+
+    plt.tight_layout()
+    plt.show()
+
+def plot_combined_top_4_country_counts(df_filtered, country_counts_by_suffix, suffixes):
+    # Create an empty list to store the data for the plot
+    plot_data = []
+
+    # Iterate over each suffix and extract the top 4 countries and their counts
     for suffix in suffixes:
         if suffix in country_counts_by_suffix:
-            total_domains = df_filtered[df_filtered['suffix'] == suffix].shape[0]
-            print(f"\nTop 4 country counts for suffix {suffix}:")
             top_4_counts = country_counts_by_suffix[suffix].nlargest(4)
-            print(top_4_counts)
-            plot_top_4_country_counts(suffix, country_counts_by_suffix[suffix], total_domains)
-    plot_top_countries_percentage(df, country_column='country')
+            for country, count in top_4_counts.items():
+                plot_data.append([suffix, country, count])
+
+    # Convert the list to a DataFrame for easier plotting
+    plot_df = pd.DataFrame(plot_data, columns=['Suffix', 'Country', 'Count'])
+
+    # Get all unique countries and generate a color palette with as many unique colors as needed
+    unique_countries = plot_df['Country'].unique()
+    palette = sns.color_palette("hsv", len(unique_countries))  # Generating unique colors
+
+    # Create a dictionary to map each country to its unique color
+    country_color_map = dict(zip(unique_countries, palette))
+
+    # Create a grouped bar plot with seaborn (suffixes on the x-axis, counts on the y-axis)
+    plt.figure(figsize=(12, 8))
+    
+    # Map the color palette based on the 'Country' column
+    sns.barplot(x='Suffix', y='Count', hue='Country', data=plot_df, 
+                palette=country_color_map)
+
+    # Rotate the x-axis labels for better readability
+    plt.xticks(rotation=45, ha='right')
+
+    # Add title and labels
+    plt.title('Top 4 Country Counts for Each Suffix')
+    plt.xlabel('Domain Suffix')
+    plt.ylabel('Number of Occurrences')
+
+    # Add a legend to indicate which color corresponds to which country
+    plt.legend(title='Country')
+
+    plt.tight_layout()
+    plt.show()
 
 # Function to extract the 'C=' field from the issuer string
 def extract_country(issuer):
@@ -83,7 +117,6 @@ def plot_top_4_country_counts(suffix, counts, total_domains):
     
     plt.tight_layout()
     plt.show()
-
 
 def plot_top_countries_percentage(df, country_column='country'):
     # Count the occurrences of each country
@@ -124,6 +157,142 @@ def plot_top_countries_percentage(df, country_column='country'):
     plt.ylabel('Percentage of Total Domains (%)')
     plt.title('Top 5 Countries by Domain Percentage')
     plt.show()
+
+def extract_company(issuer):
+    """
+    Extracts the company name from the 'issuer' field.
+    Assumes the format 'O=company_name' where 'O=' precedes the company name.
+    """
+    # Split the issuer string by commas
+    fields = issuer.split(',')
+    # Find the field that starts with 'O='
+    for field in fields:
+        if field.strip().startswith('O='):
+            return field.strip().split('=')[1]  # Return the company name after 'O='
+    return None
+
+def analyze_top_companies_by_country(df, top_n=5):
+    # Extract company names from the 'issuer' column
+    df['company'] = df['issuer'].apply(extract_company)
+
+    # Filter rows where company and country are not null
+    df_filtered = df[df['company'].notnull() & df['country'].notnull()]
+
+    # Remove the 'C=' prefix from the 'country' column to get the actual country code
+    df_filtered['country_code'] = df_filtered['country'].apply(lambda c: c.split('=')[1] if isinstance(c, str) and c.startswith('C=') else None)
+
+    # Group by country and company, and count the occurrences
+    company_counts_by_country = df_filtered.groupby(['country_code', 'company']).size().reset_index(name='count')
+
+    # For each country, get the top N companies
+    top_companies_by_country = company_counts_by_country.groupby('country_code').apply(
+        lambda group: group.nlargest(top_n, 'count')
+    ).reset_index(drop=True)
+
+    # Print the top companies for each country
+    for country_code, group in top_companies_by_country.groupby('country_code'):
+        print(f"\nTop {top_n} companies for country {country_code}:")
+        print(group[['company', 'count']])
+
+    # Optionally, you can plot the data for each country as a bar chart
+    plot_top_companies_by_country(top_companies_by_country, top_n)
+
+def analyze_top_companies_by_country(df, top_n=5):
+    # Extract company names from the 'issuer' column
+    df['company'] = df['issuer'].apply(extract_company)
+
+    # Filter rows where company and country are not null
+    df_filtered = df[df['company'].notnull() & df['country'].notnull()]
+
+    # Remove the 'C=' prefix from the 'country' column to get the actual country code
+    df_filtered['country_code'] = df_filtered['country'].apply(lambda c: c.split('=')[1] if isinstance(c, str) and c.startswith('C=') else None)
+
+    # Group by country and company, and count the occurrences
+    company_counts_by_country = df_filtered.groupby(['country_code', 'company']).size().reset_index(name='count')
+
+    # For each country, get the top N companies
+    top_companies_by_country = company_counts_by_country.groupby('country_code').apply(
+        lambda group: group.nlargest(top_n, 'count')
+    ).reset_index(drop=True)
+
+    # Print the top companies for each country
+    for country_code, group in top_companies_by_country.groupby('country_code'):
+        print(f"\nTop {top_n} companies for country {country_code}:")
+        print(group[['company', 'count']])
+
+    # Plot each country's top companies separately
+    plot_top_companies_separately(top_companies_by_country, top_n)
+
+def plot_top_companies_separately(top_companies_df, top_n):
+    """
+    Plots the top N companies for each country in separate figures.
+    """
+    # Get the unique list of countries
+    countries = top_companies_df['country_code'].unique()
+
+    # Iterate over each country and create a separate figure for each
+    for country in countries:
+        country_df = top_companies_df[top_companies_df['country_code'] == country]
+
+        # Sort the data by count
+        country_df = country_df.sort_values(by='count', ascending=False)
+
+        # Create a new figure for each country
+        plt.figure(figsize=(10, 6))
+
+        # Plot the data for this country
+        sns.barplot(x='count', y='company', data=country_df, palette='Set2')
+
+        # Set title and labels
+        plt.title(f"Top {top_n} Companies in {country}")
+        plt.xlabel('Number of Certificates Issued')
+        plt.ylabel('Company')
+
+        # Add exact counts above the bars
+        for i, row in country_df.iterrows():
+            plt.text(row['count'] + 0.1, i, f'{row["count"]}', va='center')
+
+        # Show the plot for this country
+        plt.tight_layout()
+        plt.show()
+        
+# Modify the get_countries function to call the combined plotting function
+def get_countries(csv_filename):
+    # Load the CSV file into a pandas DataFrame
+    df = pd.read_csv(csv_filename)
+
+    # Drop duplicate rows based on the 'domain' column, keeping the first occurrence
+    df = df.drop_duplicates(subset='domain', keep='first')
+
+    # Apply the function to the 'issuer' column and create a new column with the extracted country code
+    df['country'] = df['issuer'].apply(extract_country)
+
+    # Create a new column 'suffix' in the DataFrame to store the suffix of each domain
+    suffixes = [
+        ".eu", ".at", ".be", ".bg", ".hr", ".cy", ".cz", ".dk", ".ee", ".fi", 
+        ".fr", ".de", ".gr", ".hu", ".ie", ".it", ".lv", ".lt", ".lu", ".mt", 
+        ".nl", ".pl", ".pt", ".ro", ".sk", ".si", ".es", ".se"
+    ]
+    eu_country_codes = [
+        'AT', 'BE', 'BG', 'HR', 'CY', 'CZ', 'DK', 'EE', 'FI', 'FR', 'DE', 
+        'GR', 'HU', 'IE', 'IT', 'LV', 'LT', 'LU', 'MT', 'NL', 'PL', 'PT', 
+        'RO', 'SK', 'SI', 'ES', 'SE'
+    ]
+    df['suffix'] = df['domain'].apply(lambda x: next((s for s in suffixes if x.endswith(s)), None))
+
+    # Filter the DataFrame to keep only rows with the defined suffixes
+    df_filtered = df[df['suffix'].notnull()]
+
+    # Group by 'suffix' and count the occurrences of each country
+    country_counts_by_suffix = df_filtered.groupby('suffix')['country'].value_counts()
+
+    # Call the new combined plotting function with inverted axes and color palette
+    plot_combined_top_4_country_counts(df_filtered, country_counts_by_suffix, suffixes)
+
+    # Call the percentage plot function
+    plot_top_countries_percentage(df, country_column='country')
+    plot_eu_vs_non_eu_individual_counts(df, eu_country_codes)
+    analyze_top_companies_by_country(df, top_n=5)
 
 def main():
     get_countries('eu_certificates.csv')
