@@ -1,6 +1,9 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
+import pycountry
+import heatmap
+
 
 def plot_eu_vs_non_eu_individual_counts(df, eu_country_codes):
     # Remove the 'C=' prefix from the 'country' column
@@ -255,7 +258,40 @@ def plot_top_companies_separately(top_companies_df, top_n):
         # Show the plot for this country
         plt.tight_layout()
         plt.show()
-        
+
+def plot_certificate_heatmap(df):
+    """
+    Plots a heatmap showing the countries with the most issued certificates.
+
+    Parameters:
+    - df: DataFrame containing 'country' and 'issuer' columns.
+    """
+    # Ensure the country field is cleaned ('C=XX' format)
+    df['country_code'] = df['country'].apply(lambda c: c.split('=')[1] if isinstance(c, str) and c.startswith('C=') else None)
+    
+    # Count the number of certificates issued per country
+    country_counts = df['country_code'].value_counts().reset_index()
+    country_counts.columns = ['Country', 'Certificate Count']
+    
+    country_counts['Country'] = country_counts['Country'].apply(get_country_name)
+    country_counts = country_counts.dropna(subset=['Country'])  # Drop rows where country name conversion failed
+
+    # Prepare the lists of country names and their corresponding certificate counts
+    countries = country_counts['Country'].tolist()
+    values = country_counts['Certificate Count'].tolist()
+
+    # Plot the heatmap using the provided function
+    heatmap.plot_country_heatmap(countries, values)
+
+
+# Replace country codes (ISO Alpha-2 codes) with country names for the heatmap
+    # We'll use pycountry to convert country codes to full country names
+def get_country_name(country_code):
+    try:
+        return pycountry.countries.get(alpha_2=country_code).name
+    except:
+        return None
+
 # Modify the get_countries function to call the combined plotting function
 def get_countries(csv_filename):
     # Load the CSV file into a pandas DataFrame
@@ -287,12 +323,13 @@ def get_countries(csv_filename):
     country_counts_by_suffix = df_filtered.groupby('suffix')['country'].value_counts()
 
     # Call the new combined plotting function with inverted axes and color palette
-    plot_combined_top_4_country_counts(df_filtered, country_counts_by_suffix, suffixes)
+    #plot_combined_top_4_country_counts(df_filtered, country_counts_by_suffix, suffixes)
 
     # Call the percentage plot function
-    plot_top_countries_percentage(df, country_column='country')
-    plot_eu_vs_non_eu_individual_counts(df, eu_country_codes)
-    analyze_top_companies_by_country(df, top_n=5)
+    #plot_top_countries_percentage(df, country_column='country')
+    #plot_eu_vs_non_eu_individual_counts(df, eu_country_codes)
+    plot_certificate_heatmap(df)
+    #analyze_top_companies_by_country(df, top_n=5)
 
 def main():
     get_countries('eu_certificates.csv')
