@@ -103,6 +103,6 @@ def process_domains_from_csv(input_file, output_file):
                 future.result()  # This will wait for each thread to finish
 
 if __name__ == "__main__":
-    input_csv_file = 'eu.csv'  # Replace with your input CSV file path
-    output_csv_file = 'output.csv'  # Replace with your output CSV file path
+    input_csv_file = './csv/world.csv'  # Replace with your input CSV file path
+    output_csv_file = './csv/world_certificates.csv'  # Replace with your output CSV file path
     process_domains_from_csv(input_csv_file, output_csv_file)

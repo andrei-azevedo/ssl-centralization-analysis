@@ -1,13 +1,5 @@
 import csv
-
-# Define the set of suffixes
-#suffixes = {'.br', '.ru', '.in', '.za', '.cn'}
-
-suffixes = {
-    ".eu", ".at", ".be", ".bg", ".hr", ".cy", ".cz", ".dk", ".ee", ".fi", 
-    ".fr", ".de", ".gr", ".hu", ".ie", ".it", ".lv", ".lt", ".lu", ".mt", 
-    ".nl", ".pl", ".pt", ".ro", ".sk", ".si", ".es", ".se"
-}
+import constants
 
 # Function to check if the string ends with any of the specified suffixes
 def ends_with_suffix(string, suffixes):
@@ -15,7 +7,7 @@ def ends_with_suffix(string, suffixes):
 
 # Function to remove the 'https://' or 'https://www.' prefix if present
 def remove_prefix(domain):
-    prefixes = ['https://www.', 'https://']
+    prefixes = ['https://www.', 'https://', 'http://www.', 'http://']
     for prefix in prefixes:
         if domain.startswith(prefix):
             return domain[len(prefix):]
@@ -36,12 +28,12 @@ def filter_csv(input_file, output_file):
         # Filter rows based on the first field
         for row in reader:
             domain = remove_prefix(row[0])
-            if ends_with_suffix(domain, suffixes):
+            if ends_with_suffix(domain, constants.brics_suffixes):
                 writer.writerow([domain] + row[1:])
 
 # Specify input and output CSV file paths
-input_csv_file = '202406.csv'
-output_csv_file = 'eu.csv'
+input_csv_file = './csv/202406.csv'
+output_csv_file = './csv/brics.csv'
 
 # Filter the CSV file
 filter_csv(input_csv_file, output_csv_file)

@@ -2,8 +2,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import pycountry
-import heatmap
-
+import constants
 
 def plot_eu_vs_non_eu_individual_counts(df, eu_country_codes):
     # Remove the 'C=' prefix from the 'country' column
@@ -174,115 +173,125 @@ def extract_company(issuer):
             return field.strip().split('=')[1]  # Return the company name after 'O='
     return None
 
-def analyze_top_companies_by_country(df, top_n=5):
-    # Extract company names from the 'issuer' column
+def plot_top_5_companies_by_suffix(df):
+    # Add a new column for company names extracted from 'issuer'
     df['company'] = df['issuer'].apply(extract_company)
-
-    # Filter rows where company and country are not null
-    df_filtered = df[df['company'].notnull() & df['country'].notnull()]
-
-    # Remove the 'C=' prefix from the 'country' column to get the actual country code
-    df_filtered['country_code'] = df_filtered['country'].apply(lambda c: c.split('=')[1] if isinstance(c, str) and c.startswith('C=') else None)
-
-    # Group by country and company, and count the occurrences
-    company_counts_by_country = df_filtered.groupby(['country_code', 'company']).size().reset_index(name='count')
-
-    # For each country, get the top N companies
-    top_companies_by_country = company_counts_by_country.groupby('country_code').apply(
-        lambda group: group.nlargest(top_n, 'count')
-    ).reset_index(drop=True)
-
-    # Print the top companies for each country
-    for country_code, group in top_companies_by_country.groupby('country_code'):
-        print(f"\nTop {top_n} companies for country {country_code}:")
-        print(group[['company', 'count']])
-
-    # Optionally, you can plot the data for each country as a bar chart
-    plot_top_companies_by_country(top_companies_by_country, top_n)
-
-def analyze_top_companies_by_country(df, top_n=5):
-    # Extract company names from the 'issuer' column
-    df['company'] = df['issuer'].apply(extract_company)
-
-    # Filter rows where company and country are not null
-    df_filtered = df[df['company'].notnull() & df['country'].notnull()]
-
-    # Remove the 'C=' prefix from the 'country' column to get the actual country code
-    df_filtered['country_code'] = df_filtered['country'].apply(lambda c: c.split('=')[1] if isinstance(c, str) and c.startswith('C=') else None)
-
-    # Group by country and company, and count the occurrences
-    company_counts_by_country = df_filtered.groupby(['country_code', 'company']).size().reset_index(name='count')
-
-    # For each country, get the top N companies
-    top_companies_by_country = company_counts_by_country.groupby('country_code').apply(
-        lambda group: group.nlargest(top_n, 'count')
-    ).reset_index(drop=True)
-
-    # Print the top companies for each country
-    for country_code, group in top_companies_by_country.groupby('country_code'):
-        print(f"\nTop {top_n} companies for country {country_code}:")
-        print(group[['company', 'count']])
-
-    # Plot each country's top companies separately
-    plot_top_companies_separately(top_companies_by_country, top_n)
-
-def plot_top_companies_separately(top_companies_df, top_n):
-    """
-    Plots the top N companies for each country in separate figures.
-    """
-    # Get the unique list of countries
-    countries = top_companies_df['country_code'].unique()
-
-    # Iterate over each country and create a separate figure for each
-    for country in countries:
-        country_df = top_companies_df[top_companies_df['country_code'] == country]
-
-        # Sort the data by count
-        country_df = country_df.sort_values(by='count', ascending=False)
-
-        # Create a new figure for each country
-        plt.figure(figsize=(10, 6))
-
-        # Plot the data for this country
-        sns.barplot(x='count', y='company', data=country_df, palette='Set2')
-
-        # Set title and labels
-        plt.title(f"Top {top_n} Companies in {country}")
-        plt.xlabel('Number of Certificates Issued')
-        plt.ylabel('Company')
-
-        # Add exact counts above the bars
-        for i, row in country_df.iterrows():
-            plt.text(row['count'] + 0.1, i, f'{row["count"]}', va='center')
-
-        # Show the plot for this country
+    
+    # Group by suffix and find the top 5 companies for each suffix
+    for suffix in df['suffix'].unique():
+        # Filter the dataframe for the current suffix
+        suffix_df = df[df['suffix'] == suffix]
+        
+        # Count occurrences of each company
+        company_counts = suffix_df['company'].value_counts().nlargest(5)
+        
+        # Plotting the top 5 companies for the current suffix
+        company_counts.plot(kind='bar', color='skyblue')
+        plt.title(f"Top 5 Companies for {suffix} Suffix")
+        plt.ylabel('Certificate Count')
+        plt.xlabel('Company')
+        plt.xticks(rotation=45, ha='right')
         plt.tight_layout()
         plt.show()
 
-def plot_certificate_heatmap(df):
-    """
-    Plots a heatmap showing the countries with the most issued certificates.
-
-    Parameters:
-    - df: DataFrame containing 'country' and 'issuer' columns.
-    """
-    # Ensure the country field is cleaned ('C=XX' format)
-    df['country_code'] = df['country'].apply(lambda c: c.split('=')[1] if isinstance(c, str) and c.startswith('C=') else None)
+def plot_top_5_companies_overall(df):
+    # Add a new column for company names extracted from 'issuer'
+    df['company'] = df['issuer'].apply(extract_company)
     
-    # Count the number of certificates issued per country
-    country_counts = df['country_code'].value_counts().reset_index()
-    country_counts.columns = ['Country', 'Certificate Count']
+    # Count occurrences of each company across the entire dataframe
+    company_counts = df['company'].value_counts().nlargest(5)
     
-    country_counts['Country'] = country_counts['Country'].apply(get_country_name)
-    country_counts = country_counts.dropna(subset=['Country'])  # Drop rows where country name conversion failed
+    # Plotting the top 5 companies overall
+    company_counts.plot(kind='bar', color='skyblue')
+    plt.title("Top 5 Companies Overall")
+    plt.ylabel('Certificate Count')
+    plt.xlabel('Company')
+    plt.xticks(rotation=45, ha='right')
+    plt.tight_layout()
+    plt.show()
 
-    # Prepare the lists of country names and their corresponding certificate counts
-    countries = country_counts['Country'].tolist()
-    values = country_counts['Certificate Count'].tolist()
+def cap_out_of_bounds_dates(series, min_date=None, max_date=None):
+    """
+    Cap out-of-bounds dates in the series to specified limits.
+    """
+    series = pd.to_datetime(series, errors='coerce')
+    
+    # Use default pandas min and max datetime limits if not provided
+    min_date = pd.Timestamp.min if min_date is None else pd.to_datetime(min_date)
+    max_date = pd.Timestamp.max if max_date is None else pd.to_datetime(max_date)
+    
+    # Cap the dates
+    series = series.where(series >= min_date, min_date)
+    series = series.where(series <= max_date, max_date)
+    
+    return series
 
-    # Plot the heatmap using the provided function
-    heatmap.plot_country_heatmap(countries, values)
+def plot_cert_expiration_by_suffix(df):
+    # Define the cap limits for datetime (min_date is optional if you want to set lower bounds)
+    max_valid_date = '2262-04-11'
 
+    # Ensure 'not_before' and 'not_after' are capped to avoid out-of-bounds dates
+    df['not_before'] = cap_out_of_bounds_dates(df['not_before'])
+    df['not_after'] = cap_out_of_bounds_dates(df['not_after'], max_date=max_valid_date)
+
+    # Filter out rows where 'not_after' is earlier than 'not_before'
+    df = df[df['not_after'] > df['not_before']]
+
+    # Calculate the certificate duration (in years)
+    df['Years to Expiration'] = (df['not_after'] - df['not_before']).dt.total_seconds() / (365 * 24 * 3600)
+
+    # Define bins and labels for the expiration groups
+    bins = [-float('inf'), 1, 5, 10, float('inf')]
+    labels = ['< 1 year', '1-5 years', '5-10 years', '> 10 years']
+
+    # Create a new column that categorizes the expiration into intervals
+    df['Expiration Group'] = pd.cut(df['Years to Expiration'], bins=bins, labels=labels)
+
+    # Group by suffix and expiration group, then count the certificates
+    grouped = df.groupby(['suffix', 'Expiration Group']).size().unstack(fill_value=0)
+
+    # Plotting certificate expiration distribution for each suffix
+    for suffix in grouped.index:
+        grouped.loc[suffix].plot(kind='bar', stacked=True)
+        plt.title(f"Certificate Expiration Distribution for .{suffix} Domains")
+        plt.ylabel('Certificate Count')
+        plt.xlabel('Expiration Group')
+        plt.xticks(rotation=0)
+        plt.tight_layout()
+        plt.show()
+
+def plot_cert_expiration_overall(df):
+    # Define the cap limits for datetime (min_date is optional if you want to set lower bounds)
+    max_valid_date = '2262-04-11'
+
+    # Ensure 'not_before' and 'not_after' are capped to avoid out-of-bounds dates
+    df['not_before'] = cap_out_of_bounds_dates(df['not_before'])
+    df['not_after'] = cap_out_of_bounds_dates(df['not_after'], max_date=max_valid_date)
+
+    # Filter out rows where 'not_after' is earlier than 'not_before'
+    df = df[df['not_after'] > df['not_before']]
+
+    # Calculate the certificate duration (in years)
+    df['Years to Expiration'] = (df['not_after'] - df['not_before']).dt.total_seconds() / (365 * 24 * 3600)
+
+    # Define bins and labels for the expiration groups
+    bins = [-float('inf'), 1, 5, 10, float('inf')]
+    labels = ['< 1 year', '1-5 years', '5-10 years', '> 10 years']
+
+    # Create a new column that categorizes the expiration into intervals
+    df['Expiration Group'] = pd.cut(df['Years to Expiration'], bins=bins, labels=labels)
+
+    # Group by expiration group and count the certificates
+    grouped = df.groupby('Expiration Group').size()
+
+    # Plotting overall certificate expiration distribution
+    grouped.plot(kind='bar', stacked=True, color='skyblue')
+    plt.title("Overall Certificate Expiration Distribution")
+    plt.ylabel('Certificate Count')
+    plt.xlabel('Expiration Group')
+    plt.xticks(rotation=0)
+    plt.tight_layout()
+    plt.show()
 
 # Replace country codes (ISO Alpha-2 codes) with country names for the heatmap
     # We'll use pycountry to convert country codes to full country names
@@ -292,6 +301,17 @@ def get_country_name(country_code):
     except:
         return None
 
+# Function to convert 'C=xx' to 'xxx' (alpha-3 code)
+def convert_to_alpha_3(country_code):
+    if country_code.startswith('C='):
+        alpha_2 = country_code.split('=')[1]
+        try:
+            alpha_3 = pycountry.countries.get(alpha_2=alpha_2).alpha_3
+            return alpha_3
+        except AttributeError:
+            return None  # Handle cases where the country code is not found
+    return None
+
 # Modify the get_countries function to call the combined plotting function
 def get_countries(csv_filename):
     # Load the CSV file into a pandas DataFrame
@@ -299,40 +319,25 @@ def get_countries(csv_filename):
 
     # Drop duplicate rows based on the 'domain' column, keeping the first occurrence
     df = df.drop_duplicates(subset='domain', keep='first')
+    df = df.dropna(subset='issuer')
 
     # Apply the function to the 'issuer' column and create a new column with the extracted country code
     df['country'] = df['issuer'].apply(extract_country)
+    # Drop rows where 'country' is None
+    df = df.dropna(subset=['country'])
 
-    # Create a new column 'suffix' in the DataFrame to store the suffix of each domain
-    suffixes = [
-        ".eu", ".at", ".be", ".bg", ".hr", ".cy", ".cz", ".dk", ".ee", ".fi", 
-        ".fr", ".de", ".gr", ".hu", ".ie", ".it", ".lv", ".lt", ".lu", ".mt", 
-        ".nl", ".pl", ".pt", ".ro", ".sk", ".si", ".es", ".se"
-    ]
-    eu_country_codes = [
-        'AT', 'BE', 'BG', 'HR', 'CY', 'CZ', 'DK', 'EE', 'FI', 'FR', 'DE', 
-        'GR', 'HU', 'IE', 'IT', 'LV', 'LT', 'LU', 'MT', 'NL', 'PL', 'PT', 
-        'RO', 'SK', 'SI', 'ES', 'SE'
-    ]
-    df['suffix'] = df['domain'].apply(lambda x: next((s for s in suffixes if x.endswith(s)), None))
+    df['suffix'] = df['domain'].apply(lambda x: next((s for s in constants.eu_suffixes if x.endswith(s)), None))
 
     # Filter the DataFrame to keep only rows with the defined suffixes
-    df_filtered = df[df['suffix'].notnull()]
+    df= df[df['suffix'].notnull()]
+    df['country'] = df['country'].apply(convert_to_alpha_3)
+    #plot_cert_expiration_overall(df)
+    #plot_top_5_companies_by_suffix(df)
+    plot_top_5_companies_overall(df)
 
-    # Group by 'suffix' and count the occurrences of each country
-    country_counts_by_suffix = df_filtered.groupby('suffix')['country'].value_counts()
-
-    # Call the new combined plotting function with inverted axes and color palette
-    #plot_combined_top_4_country_counts(df_filtered, country_counts_by_suffix, suffixes)
-
-    # Call the percentage plot function
-    #plot_top_countries_percentage(df, country_column='country')
-    #plot_eu_vs_non_eu_individual_counts(df, eu_country_codes)
-    plot_certificate_heatmap(df)
-    #analyze_top_companies_by_country(df, top_n=5)
 
 def main():
-    get_countries('eu_certificates.csv')
+    get_countries('./csv/eu_certificates.csv')
 
 if __name__ == '__main__':
     main()
