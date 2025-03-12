@@ -89,7 +89,7 @@ def process_domains_from_csv(input_file, output_file):
                 write_cert_chain_to_csv(domain, cert_chain, output_file)
 
 def main():
-    process_domains_from_csv('./csv/brics.csv', './csv/brics_certificates.csv')
+    process_domains_from_csv('./csv/test.csv', './csv/wikipedia.csv')
 
 if __name__ == '__main__':
     main()

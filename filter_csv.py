@@ -28,12 +28,12 @@ def filter_csv(input_file, output_file):
         # Filter rows based on the first field
         for row in reader:
             domain = remove_prefix(row[0])
-            if ends_with_suffix(domain, constants.brics_suffixes):
+            if ends_with_suffix(domain, constants.eu_suffixes):
                 writer.writerow([domain] + row[1:])
 
 # Specify input and output CSV file paths
-input_csv_file = './csv/202406.csv'
-output_csv_file = './csv/brics.csv'
+input_csv_file = './csv/202502.csv'
+output_csv_file = './csv/eu.csv'
 
 # Filter the CSV file
 filter_csv(input_csv_file, output_csv_file)

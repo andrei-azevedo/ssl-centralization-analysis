@@ -4,85 +4,6 @@ import seaborn as sns
 import pycountry
 import constants
 
-def plot_eu_vs_non_eu_individual_counts(df, eu_country_codes):
-    # Remove the 'C=' prefix from the 'country' column
-    df['country_code'] = df['country'].apply(lambda c: c.split('=')[1] if isinstance(c, str) and c.startswith('C=') else None)
-
-    # Classify each domain's country as 'EU' or 'Non-EU'
-    df['is_eu'] = df['country_code'].apply(lambda c: 'EU' if c in eu_country_codes else 'Non-EU')
-
-    # Count the number of domains for EU countries (grouped into one) and non-EU countries (individually)
-    eu_count = df[df['is_eu'] == 'EU'].shape[0]
-    non_eu_counts = df[df['is_eu'] == 'Non-EU']['country_code'].value_counts()
-
-    # Create a DataFrame for plotting
-    data = {
-        'Category': ['EU Countries'] + non_eu_counts.index.tolist(),
-        'Count': [eu_count] + non_eu_counts.tolist()
-    }
-    plot_df = pd.DataFrame(data)
-
-    # Plot the bar chart using seaborn
-    plt.figure(figsize=(10, 6))
-    sns.barplot(x='Category', y='Count', data=plot_df, palette='Set3')
-
-    # Add title and labels
-    plt.title('Incidence of Domains from EU and Non-EU Countries')
-    plt.xlabel('Country')
-    plt.ylabel('Number of Domains')
-
-    # Rotate x-axis labels for readability
-    plt.xticks(rotation=45, ha='right')
-
-    # Add exact counts above the bars
-    for i, count in enumerate(plot_df['Count']):
-        plt.text(i, count + 10, f'{count}', ha='center', va='bottom')
-
-    plt.tight_layout()
-    plt.show()
-
-def plot_combined_top_4_country_counts(df_filtered, country_counts_by_suffix, suffixes):
-    # Create an empty list to store the data for the plot
-    plot_data = []
-
-    # Iterate over each suffix and extract the top 4 countries and their counts
-    for suffix in suffixes:
-        if suffix in country_counts_by_suffix:
-            top_4_counts = country_counts_by_suffix[suffix].nlargest(4)
-            for country, count in top_4_counts.items():
-                plot_data.append([suffix, country, count])
-
-    # Convert the list to a DataFrame for easier plotting
-    plot_df = pd.DataFrame(plot_data, columns=['Suffix', 'Country', 'Count'])
-
-    # Get all unique countries and generate a color palette with as many unique colors as needed
-    unique_countries = plot_df['Country'].unique()
-    palette = sns.color_palette("hsv", len(unique_countries))  # Generating unique colors
-
-    # Create a dictionary to map each country to its unique color
-    country_color_map = dict(zip(unique_countries, palette))
-
-    # Create a grouped bar plot with seaborn (suffixes on the x-axis, counts on the y-axis)
-    plt.figure(figsize=(12, 8))
-    
-    # Map the color palette based on the 'Country' column
-    sns.barplot(x='Suffix', y='Count', hue='Country', data=plot_df, 
-                palette=country_color_map)
-
-    # Rotate the x-axis labels for better readability
-    plt.xticks(rotation=45, ha='right')
-
-    # Add title and labels
-    plt.title('Top 4 Country Counts for Each Suffix')
-    plt.xlabel('Domain Suffix')
-    plt.ylabel('Number of Occurrences')
-
-    # Add a legend to indicate which color corresponds to which country
-    plt.legend(title='Country')
-
-    plt.tight_layout()
-    plt.show()
-
 # Function to extract the 'C=' field from the issuer string
 def extract_country(issuer):
     # Split the issuer string by commas
@@ -92,206 +13,6 @@ def extract_country(issuer):
         if field.strip().startswith('C='):
             return field.strip()
     return None
-
-# Function to plot the top 4 country counts for a given suffix (without normalization)
-def plot_top_4_country_counts(suffix, counts, total_domains):
-    # Get the top 4 countries by count
-    top_4_counts = counts.nlargest(4)
-    
-    # Generate a grayscale color palette for the bars
-    colors = sns.color_palette("gray", len(top_4_counts))
-    
-    # Plot the top 4 country counts side by side with grayscale colors
-    ax = top_4_counts.plot(kind='bar', color=colors, width=0.8)
-    
-    plt.title(f'Top 4 Country Counts for Suffix {suffix}')
-    plt.xlabel('Country')
-    plt.ylabel('Number of Occurrences')
-    plt.xticks(rotation=45, ha='right')
-    
-    # Add total number of domains as text in the plot
-    plt.text(0.95, 0.95, f'Total domains: {total_domains}', 
-             horizontalalignment='right', 
-             verticalalignment='top', 
-             transform=ax.transAxes, 
-             fontsize=10, 
-             bbox=dict(facecolor='white', alpha=0.5))
-    
-    plt.tight_layout()
-    plt.show()
-
-def plot_top_countries_percentage(df, country_column='country'):
-    # Count the occurrences of each country
-    country_counts = df[country_column].value_counts()
-
-    # Calculate the total number of domains
-    total_domains = country_counts.sum()
-
-    # Calculate the percentage for each country
-    country_percentages = (country_counts / total_domains) * 100
-
-    # Select the top 5 countries
-    top_countries = country_percentages.head(5)
-
-    # Generate a scale of gray colors
-    colors = [str(0.2 + 0.15 * i) for i in range(len(top_countries))]
-
-    # Plotting
-    plt.figure(figsize=(10, 6))
-    bars = plt.bar(top_countries.index, top_countries, color=colors, width=0.8)
-
-    # Add the exact percentage above each bar
-    for bar in bars:
-        height = bar.get_height()
-        plt.text(bar.get_x() + bar.get_width() / 2.0, height,
-                 f'{height:.2f}%', ha='center', va='bottom')
-
-    # Add total domains text on the plot
-    plt.text(0.95, 0.95, f'Total domains: {total_domains}', 
-             horizontalalignment='right', 
-             verticalalignment='top',              
-             transform=plt.gca().transAxes, 
-             fontsize=10, 
-             bbox=dict(facecolor='white', alpha=0.5))
-
-    
-    plt.xlabel('Country')
-    plt.ylabel('Percentage of Total Domains (%)')
-    plt.title('Top 5 Countries by Domain Percentage')
-    plt.show()
-
-def extract_company(issuer):
-    """
-    Extracts the company name from the 'issuer' field.
-    Assumes the format 'O=company_name' where 'O=' precedes the company name.
-    """
-    # Split the issuer string by commas
-    fields = issuer.split(',')
-    # Find the field that starts with 'O='
-    for field in fields:
-        if field.strip().startswith('O='):
-            return field.strip().split('=')[1]  # Return the company name after 'O='
-    return None
-
-def plot_top_5_companies_by_suffix(df):
-    # Add a new column for company names extracted from 'issuer'
-    df['company'] = df['issuer'].apply(extract_company)
-    
-    # Group by suffix and find the top 5 companies for each suffix
-    for suffix in df['suffix'].unique():
-        # Filter the dataframe for the current suffix
-        suffix_df = df[df['suffix'] == suffix]
-        
-        # Count occurrences of each company
-        company_counts = suffix_df['company'].value_counts().nlargest(5)
-        
-        # Plotting the top 5 companies for the current suffix
-        company_counts.plot(kind='bar', color='skyblue')
-        plt.title(f"Top 5 Companies for {suffix} Suffix")
-        plt.ylabel('Certificate Count')
-        plt.xlabel('Company')
-        plt.xticks(rotation=45, ha='right')
-        plt.tight_layout()
-        plt.show()
-
-def plot_top_5_companies_overall(df):
-    # Add a new column for company names extracted from 'issuer'
-    df['company'] = df['issuer'].apply(extract_company)
-    
-    # Count occurrences of each company across the entire dataframe
-    company_counts = df['company'].value_counts().nlargest(5)
-    
-    # Plotting the top 5 companies overall
-    company_counts.plot(kind='bar', color='skyblue')
-    plt.title("Top 5 Companies Overall")
-    plt.ylabel('Certificate Count')
-    plt.xlabel('Company')
-    plt.xticks(rotation=45, ha='right')
-    plt.tight_layout()
-    plt.show()
-
-def cap_out_of_bounds_dates(series, min_date=None, max_date=None):
-    """
-    Cap out-of-bounds dates in the series to specified limits.
-    """
-    series = pd.to_datetime(series, errors='coerce')
-    
-    # Use default pandas min and max datetime limits if not provided
-    min_date = pd.Timestamp.min if min_date is None else pd.to_datetime(min_date)
-    max_date = pd.Timestamp.max if max_date is None else pd.to_datetime(max_date)
-    
-    # Cap the dates
-    series = series.where(series >= min_date, min_date)
-    series = series.where(series <= max_date, max_date)
-    
-    return series
-
-def plot_cert_expiration_by_suffix(df):
-    # Define the cap limits for datetime (min_date is optional if you want to set lower bounds)
-    max_valid_date = '2262-04-11'
-
-    # Ensure 'not_before' and 'not_after' are capped to avoid out-of-bounds dates
-    df['not_before'] = cap_out_of_bounds_dates(df['not_before'])
-    df['not_after'] = cap_out_of_bounds_dates(df['not_after'], max_date=max_valid_date)
-
-    # Filter out rows where 'not_after' is earlier than 'not_before'
-    df = df[df['not_after'] > df['not_before']]
-
-    # Calculate the certificate duration (in years)
-    df['Years to Expiration'] = (df['not_after'] - df['not_before']).dt.total_seconds() / (365 * 24 * 3600)
-
-    # Define bins and labels for the expiration groups
-    bins = [-float('inf'), 1, 5, 10, float('inf')]
-    labels = ['< 1 year', '1-5 years', '5-10 years', '> 10 years']
-
-    # Create a new column that categorizes the expiration into intervals
-    df['Expiration Group'] = pd.cut(df['Years to Expiration'], bins=bins, labels=labels)
-
-    # Group by suffix and expiration group, then count the certificates
-    grouped = df.groupby(['suffix', 'Expiration Group']).size().unstack(fill_value=0)
-
-    # Plotting certificate expiration distribution for each suffix
-    for suffix in grouped.index:
-        grouped.loc[suffix].plot(kind='bar', stacked=True)
-        plt.title(f"Certificate Expiration Distribution for .{suffix} Domains")
-        plt.ylabel('Certificate Count')
-        plt.xlabel('Expiration Group')
-        plt.xticks(rotation=0)
-        plt.tight_layout()
-        plt.show()
-
-def plot_cert_expiration_overall(df):
-    # Define the cap limits for datetime (min_date is optional if you want to set lower bounds)
-    max_valid_date = '2262-04-11'
-
-    # Ensure 'not_before' and 'not_after' are capped to avoid out-of-bounds dates
-    df['not_before'] = cap_out_of_bounds_dates(df['not_before'])
-    df['not_after'] = cap_out_of_bounds_dates(df['not_after'], max_date=max_valid_date)
-
-    # Filter out rows where 'not_after' is earlier than 'not_before'
-    df = df[df['not_after'] > df['not_before']]
-
-    # Calculate the certificate duration (in years)
-    df['Years to Expiration'] = (df['not_after'] - df['not_before']).dt.total_seconds() / (365 * 24 * 3600)
-
-    # Define bins and labels for the expiration groups
-    bins = [-float('inf'), 1, 5, 10, float('inf')]
-    labels = ['< 1 year', '1-5 years', '5-10 years', '> 10 years']
-
-    # Create a new column that categorizes the expiration into intervals
-    df['Expiration Group'] = pd.cut(df['Years to Expiration'], bins=bins, labels=labels)
-
-    # Group by expiration group and count the certificates
-    grouped = df.groupby('Expiration Group').size()
-
-    # Plotting overall certificate expiration distribution
-    grouped.plot(kind='bar', stacked=True, color='skyblue')
-    plt.title("Overall Certificate Expiration Distribution")
-    plt.ylabel('Certificate Count')
-    plt.xlabel('Expiration Group')
-    plt.xticks(rotation=0)
-    plt.tight_layout()
-    plt.show()
 
 # Replace country codes (ISO Alpha-2 codes) with country names for the heatmap
     # We'll use pycountry to convert country codes to full country names
@@ -312,7 +33,6 @@ def convert_to_alpha_3(country_code):
             return None  # Handle cases where the country code is not found
     return None
 
-# Modify the get_countries function to call the combined plotting function
 def get_countries(csv_filename):
     # Load the CSV file into a pandas DataFrame
     df = pd.read_csv(csv_filename)
@@ -331,13 +51,187 @@ def get_countries(csv_filename):
     # Filter the DataFrame to keep only rows with the defined suffixes
     df= df[df['suffix'].notnull()]
     df['country'] = df['country'].apply(convert_to_alpha_3)
-    #plot_cert_expiration_overall(df)
-    #plot_top_5_companies_by_suffix(df)
-    plot_top_5_companies_overall(df)
 
+    # Convert suffix (".xx") to its corresponding alpha-3 country code for comparison
+    df['suffix_country'] = df['suffix'].apply(lambda s: convert_to_alpha_3(f'C={s[1:].upper()}'))  # Remove '.' and convert
+
+    # Group by suffix and calculate total counts
+    result = df.groupby('suffix').agg(
+        total_certs=('suffix', 'count'),
+        certs_emitted_inside_country=('country', lambda x: (x == df.loc[x.index, 'suffix_country']).sum())
+    ).reset_index()
+
+    # Save results to CSV
+    result.to_csv('eu.csv', index=False)
+
+def get_brics_cert_stats(csv_filename, output_csv):
+    df = pd.read_csv(csv_filename)
+
+    df = df.drop_duplicates(subset='domain', keep='first')
+    df = df.dropna(subset=['issuer'])
+
+    df['country'] = df['issuer'].apply(extract_country)
+    df = df.dropna(subset=['country'])
+
+    # Convert country to alpha-3 code
+    df['country'] = df['country'].apply(convert_to_alpha_3)
+
+    # Extract suffix in format '.xx' and filter only BRICS domains
+    df['suffix'] = df['domain'].apply(lambda x: next((s for s in constants.eu_suffixes if x.endswith(s)), None))
+    df = df[df['suffix'].notnull()]
+
+    # Assign BRICS group to domains
+    df['group'] = 'EU'
+
+    # Map BRICS countries to the BRICS group
+    eu_countries = {convert_to_alpha_3(f'C={s[1:].upper()}') for s in constants.eu_suffixes}
+    df['issuer_group'] = df['country'].apply(lambda c: 'EU' if c in eu_countries else 'Other')
+
+    # Group by suffix and calculate totals
+    result = df.groupby('suffix').agg(
+        total_certs=('suffix', 'count'),
+        certs_emitted_inside_group=('issuer_group', lambda x: (x == 'EU').sum())
+    ).reset_index()
+
+    # Save results to CSV
+    result.to_csv(output_csv, index=False)
+
+def get_brics_cert_totals(csv_filename, output_csv):
+    df = pd.read_csv(csv_filename)
+
+    df = df.drop_duplicates(subset='domain', keep='first')
+    df = df.dropna(subset=['issuer'])
+
+    df['country'] = df['issuer'].apply(extract_country)
+    df = df.dropna(subset=['country'])
+
+    # Convert country to alpha-3 code
+    df['country'] = df['country'].apply(convert_to_alpha_3)
+
+    # Extract suffix and filter only BRICS domains
+    df['suffix'] = df['domain'].apply(lambda x: next((s for s in constants.eu_suffixes if x.endswith(s)), None))
+    df = df[df['suffix'].notnull()]
+
+    # List of BRICS countries in alpha-3 format
+    brics_countries = {convert_to_alpha_3(f'C={s[1:].upper()}') for s in constants.eu_suffixes}
+
+    # Check if the certificate was issued inside BRICS
+    df['issued_in_brics'] = df['country'].apply(lambda c: c in brics_countries)
+
+    # Compute total values
+    total_certs = len(df)
+    certs_emitted_inside_group = df['issued_in_brics'].sum()
+
+    # Save results as a single line CSV
+    result_df = pd.DataFrame([{
+        "group": "EU",
+        "total_certs": total_certs,
+        "certs_emitted_inside_group": certs_emitted_inside_group
+    }])
+
+    result_df.to_csv(output_csv, index=False)
+
+def categorize_validity_days(days):
+    """Categorizes certificates into short, medium, or long validity groups."""
+    if days <= 90:
+        return "Short-term (≤90 days)"
+    elif days <= 180:
+        return "Medium-term (91-180 days)"
+    else:
+        return "Long-term (>=181 days)"
+
+def analyze_certificate_validity(csv_filename, output_csv):
+    df = pd.read_csv(csv_filename)
+
+    # Convert 'not_before' and 'not_after' to datetime
+    df['not_before'] = pd.to_datetime(df['not_before'], errors='coerce')
+    df['not_after'] = pd.to_datetime(df['not_after'], errors='coerce')
+
+    # Drop rows where conversion failed (NaT values)
+    df = df.dropna(subset=['not_before', 'not_after'])    
+
+    df = df.drop_duplicates(subset='domain', keep='first')
+    df = df.dropna(subset=['issuer'])
+
+    df['country'] = df['issuer'].apply(extract_country)
+    df = df.dropna(subset=['country'])
+
+    # Calculate validity period in days
+    df['validity_days'] = (df['not_after'] - df['not_before']).dt.days
+
+    # Categorize into short, medium, or long term
+    df['validity_category'] = df['validity_days'].apply(categorize_validity_days)
+
+    # Count certificates per category
+    result = df['validity_category'].value_counts().reset_index()
+    result.columns = ['validity_category', 'count']
+
+    # Save results to CSV
+    result.to_csv(output_csv, index=False)
+
+def extract_organization(issuer):
+    """Extracts the organization (O=xxx) from the issuer field."""
+    fields = issuer.split(',')
+    for field in fields:
+        field = field.strip()
+        if field.startswith("O="):  # Look for 'O=' field
+            return field[2:]  # Remove 'O=' prefix
+    return None  # Return None if no organization is found
+
+def get_top_certificate_authorities(csv_filename, output_csv):
+    # Load the CSV data
+    df = pd.read_csv(csv_filename)
+
+    # Drop duplicate domains to ensure unique certificate entries
+    df = df.drop_duplicates(subset='domain', keep='first')
+    df = df.dropna(subset=['issuer'])
+
+    # Extract the organization (O=xxx) from the issuer field
+    df['certificate_authority'] = df['issuer'].apply(extract_organization)
+    df = df.dropna(subset=['certificate_authority'])  # Remove rows where O= is missing
+
+    # Count certificates issued per CA
+    top_cas = df['certificate_authority'].value_counts().reset_index()
+    top_cas.columns = ['certificate_authority', 'certificate_count']
+
+    # Keep only the top 5 CAs
+    top_cas = top_cas.head(5)
+
+    # Save results to CSV
+    top_cas.to_csv(output_csv, index=False)
+
+    # Display results
+    print(top_cas)
+
+def get_top_countries(csv_filename, output_csv):
+    # Load the CSV data
+    df = pd.read_csv(csv_filename)
+
+    df = df.drop_duplicates(subset='domain', keep='first')
+    df = df.dropna(subset=['issuer'])
+
+    df['country'] = df['issuer'].apply(extract_country)
+    df = df.dropna(subset=['country'])
+
+    # Extract suffix and filter only BRICS domains
+    df['suffix'] = df['domain'].apply(lambda x: next((s for s in constants.eu_suffixes if x.endswith(s)), None))
+    df = df[df['suffix'].notnull()]
+
+    # Filter only BRICS domains
+    df = df[df['suffix'].isin(constants.eu_suffixes)]
+
+    # Count certificates issued per country
+    top_issuers = df['country'].value_counts().reset_index()
+    top_issuers.columns = ['country', 'certificate_count']
+
+    # Display the top 10 issuers
+    print(top_issuers.head(10))
+
+    # Save results to CSV
+    top_issuers.to_csv(output_csv, index=False)
 
 def main():
-    get_countries('./csv/eu_certificates.csv')
+    get_top_countries('./csv/eu_certificates.csv', './top_eu.csv')
 
 if __name__ == '__main__':
     main()
