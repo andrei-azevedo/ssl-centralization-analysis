@@ -230,8 +230,48 @@ def get_top_countries(csv_filename, output_csv):
     # Save results to CSV
     top_issuers.to_csv(output_csv, index=False)
 
+def process_certificates(eu_csv, brics_csv, output_csv="certificates_by_validity.csv"):
+    # Load both CSV files into a single DataFrame
+    df_eu = pd.read_csv(eu_csv)
+    df_eu = df_eu.drop_duplicates(subset='domain', keep='first')
+
+    df_brics = pd.read_csv(brics_csv)
+    df_brics = df_brics.drop_duplicates(subset='domain', keep='first')
+
+    # Merge datasets and add a group identifier
+    df_eu["group"] = "EU"
+    df_brics["group"] = "BRICS"
+    df = pd.concat([df_eu, df_brics], ignore_index=True)
+
+    # Convert 'not_before' and 'not_after' to datetime
+    df['not_before'] = pd.to_datetime(df['not_before'], errors='coerce')
+    df['not_after'] = pd.to_datetime(df['not_after'], errors='coerce')
+
+    # Drop rows where conversion failed (NaT values)
+    df = df.dropna(subset=['not_before', 'not_after'])    
+
+    # Calculate certificate validity duration in days
+    df['validity_days'] = (df['not_after'] - df['not_before']).dt.days
+
+    # Categorize certificates into short, medium, or long term
+    df['validity_category'] = df['validity_days'].apply(categorize_validity_days)
+
+    # Extract the Certificate Authority (O=xxx)
+    df['certificate_authority'] = df['issuer'].apply(extract_organization)
+
+    # Drop rows where CA extraction failed
+    df = df.dropna(subset=['certificate_authority'])
+
+    # Count the number of certificates per CA and validity category
+    result = df.groupby(['validity_category', 'certificate_authority']).size().reset_index(name='certificate_count')
+
+    # Save results to CSV
+    result.to_csv(output_csv, index=False)
+
+    print(f"Processed data saved to {output_csv}")
+
 def main():
-    get_top_countries('./csv/eu_certificates.csv', './top_eu.csv')
+    process_certificates('./csv/eu_certificates.csv', './csv/brics_certificates.csv')
 
 if __name__ == '__main__':
     main()
